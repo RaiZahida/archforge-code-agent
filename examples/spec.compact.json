@@ -1,0 +1,594 @@
+{
+ "system": {
+  "name": "Space Fractions",
+  "summary": "The Space Fractions system is a web-based, interactive learning tool designed to improve fraction-solving skills for sixth-grade students. The system consists of an introductory movie, a main menu, a series of fraction questions, and an ending scene with feedback. The architecture will follow a microservices approach, with separate components for the game logic, question management, and user interface. The system will be deployed on a cloud-based infrastructure, ensuring scalability and availability.",
+  "architectural_style": "Microservices"
+ },
+ "domain_model": {
+  "actors": [
+   {
+    "id": "EndUser",
+    "label": "End User"
+   },
+   {
+    "id": "Admin",
+    "label": "Admin"
+   }
+  ],
+  "use_cases": [
+   {
+    "id": "PlayGame",
+    "label": "Play Game"
+   },
+   {
+    "id": "ViewScore",
+    "label": "View Score"
+   },
+   {
+    "id": "UpdateQuestions",
+    "label": "Update Questions"
+   },
+   {
+    "id": "ViewHelp",
+    "label": "View Help"
+   }
+  ],
+  "classes": [
+   {
+    "name": "Game",
+    "attributes": [
+     {
+      "name": "id",
+      "type": "string",
+      "visibility": "private"
+     },
+     {
+      "name": "score",
+      "type": "int",
+      "visibility": "private"
+     }
+    ],
+    "methods": [
+     {
+      "name": "play",
+      "type": "void",
+      "visibility": "public",
+      "params": ""
+     },
+     {
+      "name": "viewScore",
+      "type": "int",
+      "visibility": "public",
+      "params": ""
+     }
+    ]
+   },
+   {
+    "name": "Question",
+    "attributes": [
+     {
+      "name": "id",
+      "type": "string",
+      "visibility": "private"
+     },
+     {
+      "name": "prompt",
+      "type": "string",
+      "visibility": "private"
+     },
+     {
+      "name": "options",
+      "type": "List<string>",
+      "visibility": "private"
+     }
+    ],
+    "methods": [
+     {
+      "name": "getPrompt",
+      "type": "string",
+      "visibility": "public",
+      "params": ""
+     },
+     {
+      "name": "getOptions",
+      "type": "List<string>",
+      "visibility": "public",
+      "params": ""
+     }
+    ]
+   },
+   {
+    "name": "User",
+    "attributes": [
+     {
+      "name": "id",
+      "type": "string",
+      "visibility": "private"
+     },
+     {
+      "name": "username",
+      "type": "string",
+      "visibility": "private"
+     }
+    ],
+    "methods": [
+     {
+      "name": "playGame",
+      "type": "void",
+      "visibility": "public",
+      "params": "game: Game"
+     },
+     {
+      "name": "viewScore",
+      "type": "int",
+      "visibility": "public",
+      "params": "game: Game"
+     }
+    ]
+   },
+   {
+    "name": "Admin",
+    "attributes": [
+     {
+      "name": "id",
+      "type": "string",
+      "visibility": "private"
+     },
+     {
+      "name": "username",
+      "type": "string",
+      "visibility": "private"
+     }
+    ],
+    "methods": [
+     {
+      "name": "updateQuestions",
+      "type": "void",
+      "visibility": "public",
+      "params": "questions: List<Question>"
+     }
+    ]
+   }
+  ],
+  "states": [
+   "Playing",
+   "Paused",
+   "GameOver"
+  ],
+  "state_transitions": [
+   {
+    "from": "[*]",
+    "to": "Playing",
+    "arrow": "-->"
+   },
+   {
+    "from": "Playing",
+    "to": "Paused",
+    "arrow": "-->",
+    "label": "pause()"
+   },
+   {
+    "from": "Paused",
+    "to": "Playing",
+    "arrow": "-->",
+    "label": "resume()"
+   },
+   {
+    "from": "Playing",
+    "to": "GameOver",
+    "arrow": "-->",
+    "label": "gameOver()"
+   }
+  ],
+  "activity": [
+   {
+    "control": "start"
+   },
+   {
+    "action": "play game"
+   },
+   {
+    "decision": "game over?",
+    "branch": "yes"
+   },
+   {
+    "action": "game over"
+   },
+   {
+    "control": "else (no)"
+   },
+   {
+    "action": "continue playing"
+   },
+   {
+    "control": "endif"
+   },
+   {
+    "action": "calculate score"
+   },
+   {
+    "action": "display score"
+   },
+   {
+    "control": "stop"
+   }
+  ],
+  "interaction_flows": [
+   {
+    "name": "SequenceDiagram1",
+    "messages": [
+     {
+      "from": "User",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "play()"
+     },
+     {
+      "from": "Game",
+      "to": "Question",
+      "arrow": "->>",
+      "label": "getPrompt()"
+     },
+     {
+      "from": "Question",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "return prompt"
+     },
+     {
+      "from": "Game",
+      "to": "User",
+      "arrow": "->>",
+      "label": "display prompt"
+     },
+     {
+      "from": "User",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "submit answer"
+     },
+     {
+      "from": "Game",
+      "to": "Question",
+      "arrow": "->>",
+      "label": "check answer"
+     },
+     {
+      "from": "Question",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "return result"
+     },
+     {
+      "from": "Game",
+      "to": "User",
+      "arrow": "->>",
+      "label": "display result"
+     }
+    ]
+   },
+   {
+    "name": "SequenceDiagram2",
+    "messages": [
+     {
+      "from": "Admin",
+      "to": "Question",
+      "arrow": "->>",
+      "label": "update()"
+     },
+     {
+      "from": "Question",
+      "to": "Admin",
+      "arrow": "->>",
+      "label": "return success"
+     }
+    ]
+   },
+   {
+    "name": "CollaborationDiagram1",
+    "messages": [
+     {
+      "from": "User",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "play()"
+     },
+     {
+      "from": "Game",
+      "to": "Question",
+      "arrow": "->>",
+      "label": "getPrompt()"
+     },
+     {
+      "from": "Question",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "return prompt"
+     },
+     {
+      "from": "Game",
+      "to": "User",
+      "arrow": "->>",
+      "label": "display prompt"
+     },
+     {
+      "from": "User",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "submit answer"
+     },
+     {
+      "from": "Game",
+      "to": "Question",
+      "arrow": "->>",
+      "label": "check answer"
+     },
+     {
+      "from": "Question",
+      "to": "Game",
+      "arrow": "->>",
+      "label": "return result"
+     },
+     {
+      "from": "Game",
+      "to": "User",
+      "arrow": "->>",
+      "label": "display result"
+     }
+    ]
+   },
+   {
+    "name": "CollaborationDiagram2",
+    "messages": [
+     {
+      "from": "Admin",
+      "to": "Question",
+      "arrow": "->>",
+      "label": "update()"
+     },
+     {
+      "from": "Question",
+      "to": "Admin",
+      "arrow": "->>",
+      "label": "return success"
+     }
+    ]
+   }
+  ],
+  "packages": [
+   {
+    "name": "Game",
+    "members": [
+     "Game",
+     "Question"
+    ]
+   },
+   {
+    "name": "User",
+    "members": [
+     "User"
+    ]
+   },
+   {
+    "name": "Admin",
+    "members": [
+     "Admin"
+    ]
+   }
+  ]
+ },
+ "requirements": [
+  {
+   "id": "FR-1",
+   "type": "FR",
+   "short_text": "Play game",
+   "diagrams": "UseCaseDiagram",
+   "components": "GameComponent",
+   "artifact_filenames": "openapi.yaml",
+   "rationale": "Allows users to play the game"
+  },
+  {
+   "id": "NFR-1",
+   "type": "NFR",
+   "short_text": "Performance",
+   "test_type": "Load testing, Stress testing",
+   "diagrams": "SequenceDiagram1",
+   "components": "GameComponent",
+   "artifact_filenames": "internal.proto",
+   "rationale": "Ensures the game responds quickly to user input"
+  },
+  {
+   "id": "ASR-1",
+   "type": "ASR",
+   "short_text": "Data durability",
+   "test_type": "Unit testing, Integration testing",
+   "diagrams": "DeploymentDiagram",
+   "components": "QuestionComponent",
+   "artifact_filenames": "sql/question_ddl.sql",
+   "rationale": "Ensures that question data is persisted and recoverable"
+  },
+  {
+   "id": "ASR-2",
+   "type": "ASR",
+   "short_text": "security",
+   "test_type": "Penetration testing, Vulnerability scanning"
+  }
+ ],
+ "structure_views": [
+  {
+   "view": "LogicView",
+   "index": 3,
+   "kind": "Object",
+   "title": "Logic View: Object Diagram",
+   "name": "ObjectDiagram",
+   "participants": [
+    "game1",
+    "question1",
+    "user1",
+    "admin1"
+   ],
+   "relations": [
+    {
+     "from": "game1",
+     "to": "question1",
+     "arrow": "-->"
+    },
+    {
+     "from": "user1",
+     "to": "game1",
+     "arrow": "-->"
+    },
+    {
+     "from": "admin1",
+     "to": "question1",
+     "arrow": "-->"
+    }
+   ]
+  },
+  {
+   "view": "DevelopmentView",
+   "index": 8,
+   "kind": "Package",
+   "title": "Development View: Package Diagram",
+   "name": "PackageDiagram",
+   "packages": [
+    {
+     "name": "Game",
+     "members": [
+      "Game",
+      "Question"
+     ]
+    },
+    {
+     "name": "User",
+     "members": [
+      "User"
+     ]
+    },
+    {
+     "name": "Admin",
+     "members": [
+      "Admin"
+     ]
+    }
+   ],
+   "relations": [
+    {
+     "from": "Game",
+     "to": "User",
+     "arrow": "--"
+    },
+    {
+     "from": "Game",
+     "to": "Admin",
+     "arrow": "--"
+    }
+   ]
+  },
+  {
+   "view": "DevelopmentView",
+   "index": 9,
+   "kind": "Component",
+   "title": "Development View: Component Diagram",
+   "name": "ComponentDiagram",
+   "nodes": [
+    "GameComponent",
+    "QuestionComponent",
+    "UserComponent",
+    "AdminComponent"
+   ],
+   "relations": [
+    {
+     "from": "GameComponent",
+     "to": "QuestionComponent",
+     "arrow": "--"
+    },
+    {
+     "from": "GameComponent",
+     "to": "UserComponent",
+     "arrow": "--"
+    },
+    {
+     "from": "GameComponent",
+     "to": "AdminComponent",
+     "arrow": "--"
+    }
+   ]
+  },
+  {
+   "view": "PhysicalView",
+   "index": 10,
+   "kind": "Deployment",
+   "title": "Physical View: Deployment Diagram",
+   "name": "DeploymentDiagram",
+   "nodes": [
+    "GameServer",
+    "QuestionServer",
+    "UserClient",
+    "AdminClient"
+   ],
+   "relations": [
+    {
+     "from": "GameServer",
+     "to": "QuestionServer",
+     "arrow": "--"
+    },
+    {
+     "from": "GameServer",
+     "to": "UserClient",
+     "arrow": "--"
+    },
+    {
+     "from": "GameServer",
+     "to": "AdminClient",
+     "arrow": "--"
+    }
+   ]
+  },
+  {
+   "view": "PhysicalView",
+   "index": 11,
+   "kind": "Container",
+   "title": "Physical View: Container Diagram",
+   "name": "ContainerDiagram",
+   "nodes": [
+    "GameContainer",
+    "QuestionContainer",
+    "UserContainer",
+    "AdminContainer"
+   ],
+   "relations": [
+    {
+     "from": "GameContainer",
+     "to": "QuestionContainer",
+     "arrow": "--"
+    },
+    {
+     "from": "GameContainer",
+     "to": "UserContainer",
+     "arrow": "--"
+    },
+    {
+     "from": "GameContainer",
+     "to": "AdminContainer",
+     "arrow": "--"
+    }
+   ]
+  }
+ ],
+ "design_notes": {
+  "C. Architecture Overview": [
+   "GameComponent: responsible for game logic and user interaction",
+   "QuestionComponent: responsible for question management and data persistence",
+   "UserComponent: responsible for user authentication and authorization"
+  ],
+  "H. Testing Strategy": [
+   "Use a test data management tool like TestRail",
+   "Implement environment isolation using Docker and Kubernetes"
+  ],
+  "K. Open Questions & Assumptions": [
+   "What is the expected user growth rate?",
+   "What is the expected game session length?"
+  ]
+ }
+}
