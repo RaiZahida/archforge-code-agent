@@ -19,6 +19,7 @@ from typing import Callable, Protocol
 from . import config
 from .cost import BudgetExceeded, CostTracker
 from .prompts import SYSTEM_PROMPT, fix_message, quality_message, task_message
+from .llm import ModelUnavailable
 from .tools import ToolError, Workspace
 
 EventFn = Callable[[str, dict], None]
@@ -71,12 +72,34 @@ class Agent:
     def cancel(self) -> None:
         self.cancel_event.set()
 
+    def _chat_with_fallback(self, schemas: list[dict]) -> dict:
+        while True:
+            try:
+                return self.client.chat(self.messages, tools=schemas)
+            except ModelUnavailable as e:
+                fallbacks = getattr(self.client, "fallback_models", [])
+                if not fallbacks:
+                    raise
+                old, self.client.model = self.client.model, fallbacks.pop(0)
+                self.cost.model = self.client.model
+                self._emit("switch", {"from": old, "to": self.client.model, "reason": str(e)})
+
+    def existing_files_note(self) -> str:
+        files = [p.relative_to(self.ws.root).as_posix() for p in sorted(self.ws.root.rglob("*"))
+                 if p.is_file() and ".archforge" not in p.parts and "__pycache__" not in p.parts]
+        if not files:
+            return ""
+        self.ws.files_written.update(files)
+        return ("\n\nRESUMING a previous run: these files already exist in the project. Keep good ones, "
+                "read_file only if you need their contents, and write only what is missing or broken:\n- "
+                + "\n- ".join(files))
+
     def run(self, spec: dict) -> RunResult:
         t0 = time.time()
         self.spec = spec
         self.log_dir.mkdir(exist_ok=True)
         self.messages = [{"role": "system", "content": SYSTEM_PROMPT},
-                         {"role": "user", "content": task_message(spec)}]
+                         {"role": "user", "content": task_message(spec) + self.existing_files_note()}]
         schemas = [t.schema() for t in self.tools.values()]
         status, error, steps, nudges = "max_steps", "", 0, 0
         self._emit("start", {"model": self.client.model, "out_dir": str(self.ws.root),
@@ -88,7 +111,7 @@ class Agent:
                     break
                 self.cost.check()
                 self._emit("waiting", {"step": steps})
-                resp = self.client.chat(self.messages, tools=schemas)
+                resp = self._chat_with_fallback(schemas)
                 step_cost = self.cost.add(resp.get("usage", {}))
                 msg = resp["message"]
                 self.messages.append(self._assistant_entry(msg))
@@ -98,12 +121,14 @@ class Agent:
                 calls = msg.get("tool_calls") or []
                 if not calls:
                     nudges += 1
-                    if nudges > 3:
-                        status, error = "error", "model stopped calling tools"
+                    reason = resp.get("finish_reason")
+                    self._emit("empty", {"step": steps, "finish_reason": reason})
+                    if nudges > 5:
+                        status, error = "error", f"model stopped calling tools (finish_reason={reason})"
                         break
-                    self.messages.append({"role": "user", "content":
-                                          "Continue working using the tools. Call finish when everything "
-                                          "is written and the tests pass."})
+                    if self.messages[-1].get("content") == "" and not self.messages[-1].get("tool_calls"):
+                        self.messages.pop()  # don't keep empty assistant turns in the history
+                    self.messages.append({"role": "user", "content": self._nudge(reason)})
                     continue
                 nudges = 0
                 for call in calls:
@@ -182,20 +207,46 @@ class Agent:
         tests = [p for p in (root / "tests").glob("test_*.py")] if (root / "tests").is_dir() else []
         if len(tests) < 3:
             problems.append(f"only {len(tests)} test file(s) in tests/; write at least 3")
-        source = ""
-        for p in root.rglob("*.py"):
-            if ".archforge" not in p.parts and "tests" not in p.parts:
-                source += p.read_text(encoding="utf-8", errors="ignore").lower()
+        from .checks import import_check, reachable_modules
+        live = reachable_modules(root)
+        if (root / "main.py").is_file():
+            orphans = [p.relative_to(root).as_posix() for p in root.rglob("*.py")
+                       if p not in live and not {".archforge", "tests", "__pycache__"} & set(p.parts)]
+            if orphans:
+                problems.append("these modules are never imported from main.py (dead code, the app "
+                                "can't reach them): " + ", ".join(sorted(orphans)[:8]) +
+                                ". Wire them into the UI or delete them")
+            for mod, err in import_check(root).items():
+                problems.append(f"module {mod} fails to import: {err}")
+        all_src, ui_src = "", ""
+        for p in live:
+            text = p.read_text(encoding="utf-8", errors="ignore").lower()
+            all_src += text
+            if "tkinter" in text:  # use cases must be reachable in the UI, not just in the model
+                ui_src += text
+        source = ui_src or all_src
         flat = source.replace("_", "").replace(" ", "")
+        flat_all = all_src.replace("_", "").replace(" ", "")
         spec = getattr(self, "spec", {}) or {}
         for uc in spec.get("domain_model", {}).get("use_cases", []):
             label = uc.get("label") or uc.get("id", "")
             if label and label.lower() not in source and label.lower().replace(" ", "") not in flat:
-                problems.append(f"use case '{label}' has no visible UI action (no button/label/function named after it)")
+                problems.append(f"use case '{label}' has no visible UI action: add a main-menu button/screen "
+                                f"for it in the tkinter UI (a model method alone is not enough)")
         for st in spec.get("domain_model", {}).get("states", []):
-            if st.lower() not in flat:
+            if st.lower() not in flat_all:
                 problems.append(f"state '{st}' from the state diagram is not implemented")
         return problems
+
+    def _nudge(self, reason: str | None) -> str:
+        missing = [p for p in self.deliverable_problems() if p.startswith(("missing", "only"))]
+        todo = ("Still missing: " + "; ".join(missing) + ". ") if missing else ""
+        if reason == "length":
+            return (todo + "Your last reply hit the output limit before any tool call. Write ONE file per "
+                    "tool call and keep each file under ~200 lines; split large modules (e.g. the UI) "
+                    "into several smaller files.")
+        return (todo + "You replied without calling a tool. Continue by calling the next tool now "
+                "(write the next missing file, run_tests, or finish).")
 
     def _verify_finish(self) -> str:
         """finish => run tests and quality checks; if anything fails and fix rounds remain, push back."""

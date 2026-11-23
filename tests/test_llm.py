@@ -83,3 +83,26 @@ def test_gemini_is_free_in_cost_tracker():
     from archforge.cost import CostTracker
     t = CostTracker("gemini-3.8-flash")
     assert t.add({"prompt_tokens": 10000, "completion_tokens": 5000}) == 0.0
+
+
+def test_daily_quota_raises_without_retry(monkeypatch):
+    from archforge.llm import QuotaExceeded
+    monkeypatch.setattr("archforge.llm.time.sleep", lambda s: None)
+    srv, rec = serve([(429, {"error": {"message": "Quota exceeded for metric: requests per day limit exceeded"}})])
+    c = DeepSeekClient("k", "gemini-x", base_url=f"http://127.0.0.1:{srv.server_port}")
+    with pytest.raises(QuotaExceeded):
+        c.chat([{"role": "user", "content": "x"}])
+    srv.shutdown()
+    assert len(rec) == 1
+
+
+def test_persistent_503_raises_model_busy_when_fallbacks_exist(monkeypatch):
+    from archforge.llm import ModelBusy
+    monkeypatch.setattr("archforge.llm.time.sleep", lambda s: None)
+    srv, rec = serve([(503, {"error": "busy"})] * 10)
+    c = DeepSeekClient("k", "gemini-x", base_url=f"http://127.0.0.1:{srv.server_port}")
+    c.fallback_models = ["gemini-y"]
+    with pytest.raises(ModelBusy):
+        c.chat([{"role": "user", "content": "x"}])
+    srv.shutdown()
+    assert len(rec) == 4

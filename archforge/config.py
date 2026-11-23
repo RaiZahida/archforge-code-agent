@@ -17,7 +17,11 @@ PROVIDERS = {
                  "default_model": "deepseek-flash", "strip_additional_properties": False},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
                "key_env": "GEMINI_API_KEY", "default_model": "gemini-3.5-flash",
-               "strip_additional_properties": True},
+               "strip_additional_properties": True,
+               # free-tier quotas are per model, so when one is used up we move to the next
+               "fallback_models": ["gemini-3.7-flash", "gemini-3.8-flash", "gemini-flash-latest",
+                                   "gemini-3.1-flash-lite", "gemini-3.5-flash-lite",
+                                   "gemini-2.5-flash"]},
 }
 DEFAULT_PROVIDER = "deepseek"
 

@@ -21,6 +21,19 @@ def _run_pytest_inprocess(argv: list[str]) -> int:
     return pytest.main(["-q", "--no-header", "-p", "no:cacheprovider", *argv])
 
 
+def load_dotenv(path: Path = Path(".env")) -> None:
+    """Read KEY=VALUE lines from a local .env file (never committed) into os.environ."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
 def _print_event(kind: str, d: dict) -> None:
     if kind == "start":
         print(f"ArchForge | model={d['model']} | budget=${d['budget']:.2f} | out={d['out_dir']}")
@@ -28,6 +41,10 @@ def _print_event(kind: str, d: dict) -> None:
         print(f"[step {d['step']:>2}] waiting for the model...", flush=True)
     elif kind == "retry":
         print(f"   ... {d['reason']} -> retrying in {d['wait_s']:.0f}s", flush=True)
+    elif kind == "switch":
+        print(f"   ** {d['reason']} -> switching to {d['to']}", flush=True)
+    elif kind == "empty":
+        print(f"   (model replied with no tool call, finish_reason={d['finish_reason']}) -> nudging", flush=True)
     elif kind == "model":
         print(f"[step {d['step']:>2}] {d['tool_calls']} tool call(s) | spent ${d['cost_usd']:.4f}", flush=True)
     elif kind == "tool":
@@ -50,6 +67,9 @@ def _print_event(kind: str, d: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["--import-check"]:
+        from .checks import run_import_script
+        return run_import_script(argv[1], argv[2])
     if argv[:1] == ["--run-pytest"]:
         return _run_pytest_inprocess(argv[1:])
     if not argv:  # double-clicked: open the GUI
@@ -66,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--model", default=None, help="model id (default depends on provider)")
     r.add_argument("--budget", type=float, default=config.DEFAULT_BUDGET_USD)
     r.add_argument("--max-steps", type=int, default=config.DEFAULT_MAX_STEPS)
+    r.add_argument("--fresh", action="store_true", help="delete the output folder first (default: resume)")
     r.add_argument("--api-key", default="", help="or set DEEPSEEK_API_KEY / GEMINI_API_KEY")
     sub.add_parser("gui", help="open the desktop app")
     a = ap.parse_args(argv)
@@ -79,10 +100,19 @@ def main(argv: list[str] | None = None) -> int:
     from .preprocess import build_spec, compact_spec
 
     spec = build_spec(a.doc.read_text(encoding="utf-8"), a.view.read_text(encoding="utf-8"))
+    if a.fresh and a.out.exists():
+        import shutil
+        shutil.rmtree(a.out)
     a.out.mkdir(parents=True, exist_ok=True)
     (a.out / ".archforge").mkdir(exist_ok=True)
     (a.out / ".archforge" / "spec.json").write_text(json.dumps(spec, indent=2), encoding="utf-8")
-    key = a.api_key or os.environ.get(config.PROVIDERS[a.provider]["key_env"], "")
+    load_dotenv()
+    env_name = config.PROVIDERS[a.provider]["key_env"]
+    key = a.api_key or os.environ.get(env_name, "")
+    if not key:
+        print(f"No API key found. Put {env_name}=your-key in a .env file in this folder, "
+              f"or run: export {env_name}=your-key")
+        return 2
     client = DeepSeekClient.for_provider(a.provider, key, a.model)
     agent = Agent(client, a.out, budget_usd=a.budget, max_steps=a.max_steps, on_event=_print_event)
     result = agent.run(compact_spec(spec))

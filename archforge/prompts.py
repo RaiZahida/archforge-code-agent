@@ -43,7 +43,10 @@ module, how to run, how to test), and a Dockerfile (optional, for running the te
 
 # How to work
 1. First call update_plan with every file you will create.
-2. Write files one by one with write_file (complete content, no placeholders or TODOs).
+2. Write files one by one with write_file (complete content, no placeholders or TODOs). \
+Keep each file under ~250 lines and split big modules (UI screens) into several files. \
+Requests are rate-limited, so put 2-4 write_file calls in ONE reply whenever the files are \
+independent. Write main.py, README.md and the tests early, not last.
 3. Call run_tests. If tests fail, read the output, fix the root cause with edit_file \
 (or write_file), and run tests again. Never delete tests just to make them pass.
 4. Keep the plan updated. When all files exist and tests pass, call finish.

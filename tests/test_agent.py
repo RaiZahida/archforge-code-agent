@@ -143,3 +143,48 @@ def test_quality_checks_push_back_missing_deliverables(tmp_path):
     feedback = [m["content"] for m in llm.seen[2] if m["role"] == "tool"][-1]
     assert "missing main.py" in feedback and "View Help" in feedback and "Paused" in feedback
     assert res.status == "success" and res.quality_issues == []
+
+
+class EmptyThenWorkLLM(FakeLLM):
+    def chat(self, messages, tools=None, **kw):
+        self.seen.append([m.copy() for m in messages])
+        if len(self.seen) <= 2:  # two empty replies, as if the output limit was hit
+            return {"message": {"role": "assistant", "content": ""}, "usage": USAGE, "finish_reason": "length"}
+        return super().chat(messages, tools, **kw)
+
+
+def test_empty_replies_get_specific_nudge(tmp_path):
+    llm = EmptyThenWorkLLM([[call("finish", 1, summary="x")]])
+    Agent(llm, tmp_path, quality_checks=False).run({})
+    last_user = [m for m in llm.seen[2] if m["role"] == "user"][-1]["content"]
+    assert "output limit" in last_user
+    assert not any(m["role"] == "assistant" and not m.get("content") and not m.get("tool_calls") for m in llm.seen[2])
+
+
+def test_quota_exceeded_switches_model(tmp_path):
+    from archforge.llm import QuotaExceeded
+
+    class QuotaLLM(FakeLLM):
+        model = "gemini-a"
+        fallback_models = ["gemini-b"]
+
+        def chat(self, messages, tools=None, **kw):
+            if self.model == "gemini-a":
+                raise QuotaExceeded("gemini-a: daily quota exceeded")
+            return super().chat(messages, tools, **kw)
+
+    events = []
+    llm = QuotaLLM([[call("finish", 1, summary="x")]])
+    res = Agent(llm, tmp_path, quality_checks=False, on_event=lambda k, d: events.append((k, d))).run({})
+    assert llm.model == "gemini-b"
+    assert ("switch", {"from": "gemini-a", "to": "gemini-b", "reason": "gemini-a: daily quota exceeded"}) in events
+    assert res.cost["model"] == "gemini-b"
+
+
+def test_resume_lists_existing_files(tmp_path):
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "models.py").write_text("x = 1\n")
+    llm = FakeLLM([[call("finish", 1, summary="x")]])
+    Agent(llm, tmp_path, quality_checks=False).run({})
+    first_user = llm.seen[0][1]["content"]
+    assert "RESUMING" in first_user and "app/models.py" in first_user
