@@ -6,6 +6,7 @@ extra dependencies.
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -50,7 +51,8 @@ class DeepSeekClient:
     def for_provider(cls, provider: str, api_key: str, model: str | None = None) -> "DeepSeekClient":
         from .config import PROVIDERS
         cfg = PROVIDERS[provider]
-        c = cls(api_key, model or cfg["default_model"], base_url=cfg["base_url"],
+        base = os.environ.get("ARCHFORGE_BASE_URL") or cfg["base_url"]  # override for tests/proxies
+        c = cls(api_key, model or cfg["default_model"], base_url=base,
                 strip_additional_properties=cfg["strip_additional_properties"])
         c.fallback_models = [m for m in cfg.get("fallback_models", []) if m != c.model]
         return c

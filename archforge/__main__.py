@@ -65,8 +65,18 @@ def _print_event(kind: str, d: dict) -> None:
             print("Quality issue:", q)
 
 
+def _child_output() -> None:
+    """In child helper modes of the frozen .exe, send output to the file the parent named."""
+    path = os.environ.get("ARCHFORGE_CHILD_OUT")
+    if path:
+        f = open(path, "w", encoding="utf-8", buffering=1)
+        sys.stdout = sys.stderr = f
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] in (["--import-check"], ["--run-pytest"]):
+        _child_output()
     if argv[:1] == ["--import-check"]:
         from .checks import run_import_script
         return run_import_script(argv[1], argv[2])

@@ -39,6 +39,38 @@ def pytest_command(project_dir: Path) -> list[str]:
     return [sys.executable, "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", str(project_dir)]
 
 
+def run_child(cmd: list[str], cwd: Path, timeout: int) -> tuple[int, str]:
+    """Run a helper process and return (exit code, combined output).
+
+    A windowed (no-console) .exe has no usable stdout, so in frozen mode the child
+    writes its output to a temp file named in ARCHFORGE_CHILD_OUT instead of a pipe.
+    Raises subprocess.TimeoutExpired on timeout.
+    """
+    import tempfile
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
+    kw: dict = {}
+    if os.name == "nt":
+        kw["creationflags"] = 0x08000000  # CREATE_NO_WINDOW: no console flashing up
+    if getattr(sys, "frozen", False):
+        fd, out_file = tempfile.mkstemp(prefix="archforge_", suffix=".log")
+        os.close(fd)
+        env["ARCHFORGE_CHILD_OUT"] = out_file
+        try:
+            proc = subprocess.run(cmd, cwd=cwd, env=env, timeout=timeout,
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL, **kw)
+            text = Path(out_file).read_text(encoding="utf-8", errors="replace")
+        finally:
+            try:
+                os.remove(out_file)
+            except OSError:
+                pass
+        return proc.returncode, text
+    proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout,
+                          encoding="utf-8", errors="replace", **kw)
+    return proc.returncode, proc.stdout + proc.stderr
+
+
 @dataclass
 class Tool:
     name: str
@@ -83,6 +115,7 @@ class Workspace:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8", newline="\n")
         self.files_written.add(self.rel(p))
+        self._tick_plan(self.rel(p))
         return f"wrote {self.rel(p)} ({len(content.splitlines())} lines)"
 
     def read_file(self, path: str) -> str:
@@ -117,20 +150,23 @@ class Workspace:
         return truncate("\n".join(items) or "(empty)")
 
     def run_tests(self) -> str:
-        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
         try:
-            proc = subprocess.run(pytest_command(self.root), cwd=self.root, env=env,
-                                  capture_output=True, text=True, timeout=COMMAND_TIMEOUT_S,
-                                  encoding="utf-8", errors="replace")
+            code, out = run_child(pytest_command(self.root), self.root, COMMAND_TIMEOUT_S)
         except subprocess.TimeoutExpired:
             self.last_test = {"passed": False, "exit_code": None, "output": "timeout"}
             raise ToolError(f"tests timed out after {COMMAND_TIMEOUT_S}s (an infinite loop or a GUI mainloop in tests?)")
-        out = (proc.stdout + proc.stderr).strip()
+        out = out.strip()
         # pytest exit codes: 0 all passed, 1 failures, 5 no tests collected
-        self.last_test = {"passed": proc.returncode == 0, "exit_code": proc.returncode,
-                          "output": out[-2000:]}
-        status = "ALL TESTS PASSED" if proc.returncode == 0 else f"TESTS FAILED (exit {proc.returncode})"
+        self.last_test = {"passed": code == 0, "exit_code": code, "output": out[-2000:]}
+        status = "ALL TESTS PASSED" if code == 0 else f"TESTS FAILED (exit {code})"
         return truncate(f"{status}\n{out}")
+
+    def _tick_plan(self, rel: str) -> None:
+        """Models often forget to update plan status, so mark items mentioning a written file."""
+        name = rel.rsplit("/", 1)[-1]
+        for it in self.plan:
+            if it["status"] != "done" and (rel in it["task"] or name in it["task"]):
+                it["status"] = "in_progress"
 
     def update_plan(self, items: list) -> str:
         clean = []

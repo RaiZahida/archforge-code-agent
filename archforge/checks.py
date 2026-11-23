@@ -99,9 +99,10 @@ def import_check(root: Path) -> dict[str, str]:
         cmd = [sys.executable, "--import-check", str(root), json.dumps(mods)]
     else:
         cmd = [sys.executable, "-c", _IMPORT_SCRIPT, str(root), json.dumps(mods)]
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    from .tools import run_child
     try:
-        p = subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=60, env=env)
-        return json.loads(p.stdout.strip().splitlines()[-1]) if p.stdout.strip() else {"?": p.stderr[-300:]}
+        _, out = run_child(cmd, root, 60)
+        lines = [l for l in out.strip().splitlines() if l.startswith("{")]
+        return json.loads(lines[-1]) if lines else {"?": out[-300:]}
     except Exception as e:  # never let the checker crash the agent
         return {"?": f"import check could not run: {e}"}

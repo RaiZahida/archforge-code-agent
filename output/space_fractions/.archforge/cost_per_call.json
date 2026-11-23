@@ -1,0 +1,130 @@
+[
+ {
+  "call": 1,
+  "hit": 0,
+  "miss": 5013,
+  "out": 178,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 2,
+  "hit": 0,
+  "miss": 5212,
+  "out": 182,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 3,
+  "hit": 0,
+  "miss": 5416,
+  "out": 456,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 4,
+  "hit": 0,
+  "miss": 5896,
+  "out": 622,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 5,
+  "hit": 0,
+  "miss": 6542,
+  "out": 741,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 6,
+  "hit": 0,
+  "miss": 7307,
+  "out": 56,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 7,
+  "hit": 0,
+  "miss": 7384,
+  "out": 65,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 8,
+  "hit": 0,
+  "miss": 7473,
+  "out": 195,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 9,
+  "hit": 0,
+  "miss": 7694,
+  "out": 173,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 10,
+  "hit": 0,
+  "miss": 7893,
+  "out": 10,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 11,
+  "hit": 0,
+  "miss": 7940,
+  "out": 66,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 12,
+  "hit": 0,
+  "miss": 8147,
+  "out": 25,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 13,
+  "hit": 0,
+  "miss": 8193,
+  "out": 631,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 14,
+  "hit": 0,
+  "miss": 8843,
+  "out": 111,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 15,
+  "hit": 0,
+  "miss": 8981,
+  "out": 10,
+  "cost": 0.0,
+  "peak": false
+ },
+ {
+  "call": 16,
+  "hit": 0,
+  "miss": 9028,
+  "out": 53,
+  "cost": 0.0,
+  "peak": false
+ }
+]

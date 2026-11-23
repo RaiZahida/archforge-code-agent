@@ -257,6 +257,10 @@ class Agent:
         tests_ok = bool(self.ws.last_test and self.ws.last_test["passed"])
         problems = self.deliverable_problems()
         if tests_ok and not problems:
+            for it in self.ws.plan:
+                it["status"] = "done"
+            self._emit("tool", {"name": "verify", "ok": True, "args": "tests + quality checks",
+                                "output": "", "plan": self.ws.plan})
             return "Verified: all tests pass and all deliverables are present. Run complete."
         if self.fix_rounds_left > 0:
             self.fix_rounds_left -= 1
