@@ -14,7 +14,7 @@ The provided sample input (the *Space Fractions* architecture) is in `examples/i
 | Agent output | Python 3 + tkinter desktop app, pytest suite, README, requirements, Dockerfile |
 | Agent's own tests | 34 pytest tests (offline, scripted fake LLM + mock HTTP server) |
 
-> **Video demo:** _YouTube link here_ · **Note on the LLM provider:** see [Provider note](#provider-note).
+> **Video demo:** [https://youtu.be/BB9ioQMWaB8](https://youtu.be/BB9ioQMWaB8) · **Download:** `ArchForge.exe` under [Releases](https://github.com/RaiZahida/archforge-code-agent/releases) · **Note on the LLM provider:** see [Provider note](#provider-note).
 
 ---
 
